@@ -11,13 +11,30 @@ const char* mqtt_server = "10.19.5.101";
 WiFiClient espClient;
 PubSubClient client(espClient);
 
-// === Pins ===
+// === LED === //
 
-// LED ->
-const int hallPin = 22;
-const int redPin = 10;
-const int greenPin = 9;
-const int bluePin = 8;
+// Configuration LEDs
+const int led1Pins[3] = {25, 27, 26};  // R, G, B (LED 1)
+const int led2Pins[3] = {33, 35, 34};  // R, G, B (LED 2)
+
+struct LedState {
+  bool magneticDetected;
+  bool inYellowPhase;
+  bool inGreenPhase;
+  unsigned long yellowStartTime;
+  unsigned long lastBlinkTime;
+  bool ledOn;
+};
+
+LedState led1State = {false, false, false, 0, 0, false};
+LedState led2State = {false, false, false, 0, 0, false};
+
+// === Prototypes ===
+void controlLED(int sensorPin, LedState &state, const int pins[3]);
+void setRGB(const int pins[3], int r, int g, int b);
+
+
+// === SENSOR === //
 
 // Sensor ->
 const int capteurPins[8] = {15, 4, 5, 18, 22, 21, 19, 23}; // ⚠️ exemple, à adapter selon ton câblage
@@ -81,12 +98,19 @@ void reconnect() {
 
 void setup() {
 
+  // Configuration LEDs
+  for(int i=0; i<3; i++) {
+    pinMode(led1Pins[i], OUTPUT);
+    pinMode(led2Pins[i], OUTPUT);
+  }
+  setRGB(led1Pins, 0, 0, 255); // Bleu au démarrage
+  setRGB(led2Pins, 0, 0, 255);
+
   // Sensor
   for (int i = 0; i < 8; i++) {
     pinMode(capteurPins[i], INPUT_PULLUP);
   }
   Serial.begin(115200);
-
 
   // Network
   setup_wifi();
@@ -117,6 +141,11 @@ void loop() {
     }
 
     capteurs[i] = currentState;
+
+    // Contrôle LEDs pour capteurs 0 et 1
+    if(i == 2) controlLED(capteurPins[i], led1State, led1Pins);
+    if(i == 1) controlLED(capteurPins[i], led2State, led2Pins);
+
   }
 
   if (changementDetecte) {
@@ -124,6 +153,67 @@ void loop() {
   }
 
   delay(100); // anti-rebond global
+}
+
+
+// Fonction de contrôle LED générique
+void controlLED(int sensorPin, LedState &state, const int pins[3]) {
+  int sensorState = digitalRead(sensorPin);
+  unsigned long currentTime = millis();
+
+  if (sensorState == LOW) {
+    if (!state.magneticDetected) {
+      state.magneticDetected = true;
+      state.inYellowPhase = true;
+      state.inGreenPhase = false;
+      state.yellowStartTime = currentTime;
+      state.lastBlinkTime = currentTime;
+      Serial.print("Capteur ");
+      Serial.print(sensorPin);
+      Serial.println(" activé → Phase jaune");
+    }
+
+    if (state.inYellowPhase && (currentTime - state.yellowStartTime < 5000)) {
+      if (currentTime - state.lastBlinkTime >= 200) {
+        state.ledOn = !state.ledOn;
+        setRGB(pins, state.ledOn ? 255 : 0, state.ledOn ? 255 : 0, 0); // Jaune clignotant
+        state.lastBlinkTime = currentTime;
+      }
+    } 
+    else if (state.inYellowPhase) {
+      state.inYellowPhase = false;
+      state.inGreenPhase = true;
+      state.lastBlinkTime = currentTime;
+      setRGB(pins, 0, 0, 0); // Éteint avant transition
+      Serial.print("Capteur ");
+      Serial.print(sensorPin);
+      Serial.println(" → Phase verte");
+    }
+
+    if (state.inGreenPhase && (currentTime - state.lastBlinkTime >= 200)) {
+      state.ledOn = !state.ledOn;
+      setRGB(pins, 0, state.ledOn ? 255 : 0, 0); // Vert clignotant
+      state.lastBlinkTime = currentTime;
+    }
+
+  } else {
+    if (state.magneticDetected) {
+      state.magneticDetected = false;
+      state.inYellowPhase = false;
+      state.inGreenPhase = false;
+      setRGB(pins, 0, 0, 255); // Retour au bleu
+      Serial.print("Capteur ");
+      Serial.print(sensorPin);
+      Serial.println(" désactivé");
+    }
+  }
+}
+
+// Fonction utilitaire pour contrôle RGB
+void setRGB(const int pins[3], int r, int g, int b) {
+  analogWrite(pins[0], r);
+  analogWrite(pins[1], g);
+  analogWrite(pins[2], b);
 }
 
 
