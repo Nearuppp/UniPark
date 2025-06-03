@@ -1,0 +1,114 @@
+version: "3.9"
+services:
+
+  mongo-db:
+    image: mongo:4.4
+    container_name: mongo-db
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo-data:/data/db
+    networks:
+      - default
+
+  orion:
+    image: fiware/orion
+    container_name: fiware-orion
+    depends_on:
+      - mongo-db
+    ports:
+      - "1026:1026"
+    command: -dbURI mongodb://mongo-db:27017
+    networks:
+      - default
+
+  iot-agent:
+    image: fiware/iotagent-json
+    container_name: fiware-iot-agent
+    depends_on:
+      - mongo-db
+      - orion
+      - mosquitto
+    ports:
+      - "4041:4041"
+    environment:
+      - IOTA_CB_HOST=fiware-orion
+      - IOTA_CB_PORT=1026
+      - IOTA_NORTH_PORT=4041
+      - IOTA_REGISTRY_TYPE=mongodb
+      - IOTA_LOG_LEVEL=DEBUG
+      - IOTA_TIMESTAMP=true
+      - IOTA_MONGO_HOST=mongo-db
+      - IOTA_MONGO_PORT=27017
+      - IOTA_MONGO_DB=iotagentjson
+      - IOTA_HTTP_PORT=4041
+      - IOTA_PROVIDER_URL=http://fiware-iot-agent:4041
+      - IOTA_DEFAULT_RESOURCE=
+      - IOTA_MQTT_ENABLED=true
+      - IOTA_MQTT_HOST=mosquitto
+      - IOTA_MQTT_PORT=1883
+      - IOTA_MQTT_QOS=0
+      - IOTA_MQTT_KEEPALIVE=60
+      - IOTA_AMQP_ENABLED=false
+      - IOTA_AUTOCAST=true
+    networks:
+      - default
+
+  node-red:
+    image: nodered/node-red
+    container_name: node-red
+    ports:
+      - "1880:1880"
+    volumes:
+      - node-red-data:/data
+    networks:
+      - default
+
+  portainer:
+    image: portainer/portainer-ce
+    container_name: portainer
+    ports:
+      - "9000:9000"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer-data:/data
+    networks:
+      - default
+
+  mosquitto:
+    image: eclipse-mosquitto
+    container_name: mosquitto
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    volumes:
+      - ./mosquitto/config:/mosquitto/config
+    networks:
+      - default
+
+  grafana:
+    image: grafana/grafana-enterprise
+    container_name: grafana
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin123
+    volumes:
+      - ./grafana/plugins:/var/lib/grafana/plugins
+      - grafana-data:/var/lib/grafana
+    depends_on:
+      - mongo-db
+    networks:
+      - default
+
+
+volumes:
+  mongo-data:
+  node-red-data:
+  portainer-data:
+  grafana-data:
+
+networks:
+  default:
+    driver: bridge
