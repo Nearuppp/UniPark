@@ -37,9 +37,9 @@ void setRGB(const int pins[3], int r, int g, int b);
 // === SENSOR === //
 
 // Sensor ->
-const int capteurPins[8] = {15, 4, 5, 18, 22, 21, 19, 23}; // ⚠️ exemple, à adapter selon ton câblage
-int capteurs[8] = {-1, -1, -1, -1, -1, -1, -1, -1};
-int lastStates[8] = {HIGH, HIGH, HIGH, HIGH, HIGH, HIGH, HIGH, HIGH}; // Pull-up actif → HIGH = pas d’aimant
+const int capteurPins[7] = {15, 4, 5, 18, 23, 2, 19}; // ⚠️ exemple, à adapter selon ton câblage
+int capteurs[7] = {-1, -1, -1, -1, -1, -1, -1};
+int lastStates[7] = {HIGH, HIGH, HIGH, HIGH, HIGH, HIGH, HIGH}; // Pull-up actif → HIGH = pas d’aimant
 
 // === Variables ===
 int lastHallState = -1;  // État précédent du capteur
@@ -107,7 +107,7 @@ void setup() {
   setRGB(led2Pins, 0, 0, 255);
 
   // Sensor
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < 7; i++) {
     pinMode(capteurPins[i], INPUT_PULLUP);
   }
   Serial.begin(115200);
@@ -127,7 +127,7 @@ void loop() {
   bool changementDetecte = false;
 
   // Boucle sur les 8 capteurs
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < 7; i++) {
     int currentState = digitalRead(capteurPins[i]);
 
     if (currentState != lastStates[i]) {
@@ -218,8 +218,8 @@ void setRGB(const int pins[3], int r, int g, int b) {
 
 
 void envoyerDonneesCapteurs() {
-  int capteurs[8];
-  for (int i = 0; i < 8; i++) {
+  int capteurs[7];
+  for (int i = 0; i < 7; i++) {
     capteurs[i] = digitalRead(capteurPins[i]); // capteurPins[] contient les 8 pins
     Serial.print("capteur[");
     Serial.print(i);
@@ -231,7 +231,7 @@ void envoyerDonneesCapteurs() {
 
   StaticJsonDocument<200> doc;
   JsonArray arr = doc.createNestedArray("capteurs");
-  for (int i = 0; i < 8; i++) {
+  for (int i = 0; i < 7; i++) {
     arr.add(capteurs[i]);
   }
   doc["timestamp"] = millis() / 1000;
