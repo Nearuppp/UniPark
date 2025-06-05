@@ -2,6 +2,10 @@
 #include <PubSubClient.h>
 #include <ArduinoJson.h>
 
+#include "rgb_lcd.h"
+rgb_lcd lcd;
+
+
 // === Configuration WiFi ===
 const char* ssid = "RIOC-TP-IoT";
 const char* password = "GRIT-RIOC_2024";
@@ -98,6 +102,11 @@ void reconnect() {
 
 void setup() {
 
+  // Initialisation de l’I2C sur les bons pins pour ESP32
+  Wire.begin(21, 22); // SDA = 21, SCL = 22
+  lcd.begin(16, 2);   // LCD 16 colonnes, 2 lignes
+  lcd.setRGB(0, 255, 0); // Rétroéclairage vert au démarrage
+
   // Configuration LEDs
   for(int i=0; i<3; i++) {
     pinMode(led1Pins[i], OUTPUT);
@@ -118,6 +127,15 @@ void setup() {
   client.setCallback(callback);  // Ajout du callback
 }
 
+void afficheLCD(const String& ligne1, const String& ligne2, uint8_t r=0, uint8_t g=255, uint8_t b=0) {
+  lcd.clear();
+  lcd.setCursor(0, 0);
+  lcd.print(ligne1);
+  lcd.setCursor(0, 1);
+  lcd.print(ligne2);
+  lcd.setRGB(r, g, b);
+}
+
 void loop() {
   if (!client.connected()) {
     reconnect();
@@ -126,9 +144,11 @@ void loop() {
 
   bool changementDetecte = false;
 
+  int count = 0;
   // Boucle sur les 8 capteurs
   for (int i = 0; i < 7; i++) {
     int currentState = digitalRead(capteurPins[i]);
+    count = count + ((currentState == LOW) ? 0 : 1);
 
     if (currentState != lastStates[i]) {
       Serial.print("🔄 Changement détecté sur capteur ");
@@ -150,6 +170,13 @@ void loop() {
 
   if (changementDetecte) {
     envoyerDonneesCapteurs();
+
+    String state = "Nb place libre:" + String(count);
+
+    // Exemple : Afficher l’état du capteur 0 et 1
+    String etat0 = "Nb place:";
+    String etat1 = String(count);
+    afficheLCD(etat0, etat1);
   }
 
   delay(100); // anti-rebond global
@@ -238,5 +265,5 @@ void envoyerDonneesCapteurs() {
 
   char message[256];
   serializeJson(doc, message);
-  client.publish("/parking123/parking_sensors/attrs", message);
+  client.publish("/parking123/parking_sensors_v3/attrs", message);
 }
